@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Облако слов — СИБУР Форум</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Raleway:wght@300;400;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #05060e;
+  --surface: #0d0f1e;
+  --border: #1a1d35;
+  --text: #e8eaf6;
+  --muted: #4a4e7a;
+  --blue: #0057ff;
+  --cyan: #00c8ff;
+  --green: #00e5a0;
+}
+
+html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: 'Raleway', sans-serif; overflow: hidden; }
+
+/* ── VIEWS ── */
+#editorView, #cloudView {
+  position: fixed; inset: 0;
+  transition: opacity 0.5s ease;
+}
+#editorView { z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; overflow-y: auto; }
+#cloudView  { z-index: 5; opacity: 0; pointer-events: none; }
+#cloudView.active  { opacity: 1; pointer-events: all; }
+#editorView.hidden { opacity: 0; pointer-events: none; }
+
+/* ── EDITOR ── */
+.editor-wrap { width: 100%; max-width: 680px; }
+
+.logo { font-size: 0.7rem; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; margin-bottom: 28px; text-align: center; }
+
+h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 7vw, 5.5rem);
+  letter-spacing: 0.06em; line-height: 0.95;
+  background: linear-gradient(135deg, #fff 0%, var(--cyan) 60%, var(--blue) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  margin-bottom: 6px;
+}
+.subtitle { font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); margin-bottom: 32px; }
+
+.input-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 14px; }
+.input-top { display: flex; justify-content: space-between; align-items: center; padding: 11px 18px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+.input-label { font-size: 0.6rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); }
+.word-count  { font-size: 0.65rem; color: var(--cyan); font-weight: 700; }
+
+textarea { width: 100%; background: transparent; border: none; outline: none; color: var(--text); font-family: 'Raleway', sans-serif; font-size: 0.9rem; line-height: 1.8; padding: 18px; resize: none; height: 180px; }
+textarea::placeholder { color: var(--muted); }
+
+.hint { font-size: 0.66rem; color: var(--muted); margin-bottom: 18px; line-height: 1.6; padding: 0 2px; }
+.hint strong { color: var(--cyan); }
+
+.btn-launch { width: 100%; padding: 17px; background: linear-gradient(135deg, var(--blue), var(--cyan)); border: none; border-radius: 12px; color: #fff; font-family: 'Bebas Neue', sans-serif; font-size: 1.25rem; letter-spacing: 0.22em; cursor: pointer; transition: all 0.25s; box-shadow: 0 8px 32px rgba(0,88,255,0.3); }
+.btn-launch:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(0,88,255,0.45); }
+
+/* ── CLOUD VIEW ── */
+#cloudView { background: var(--bg); display: flex; flex-direction: column; }
+#cloudView::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(rgba(0,88,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,88,255,0.03) 1px, transparent 1px); background-size: 60px 60px; pointer-events: none; }
+
+.orb { position: absolute; border-radius: 50%; pointer-events: none; filter: blur(90px); opacity: 0.10; }
+.orb1 { width: 500px; height: 500px; background: var(--blue);  top: -150px; left: -150px; }
+.orb2 { width: 350px; height: 350px; background: var(--cyan);  bottom: -100px; right: -100px; }
+.orb3 { width: 250px; height: 250px; background: var(--green); top: 35%; left: 25%; }
+
+.cloud-header { position: relative; z-index: 20; display: flex; justify-content: space-between; align-items: center; padding: 16px 28px; border-bottom: 1px solid var(--border); background: rgba(5,6,14,0.85); backdrop-filter: blur(8px); flex-shrink: 0; }
+.cloud-title { font-family: 'Bebas Neue', sans-serif; font-size: 1rem; letter-spacing: 0.3em; color: var(--muted); }
+.cloud-stats { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.1em; }
+.cloud-stats span { color: var(--cyan); font-weight: 700; }
+.btn-back { background: transparent; border: 1px solid var(--border); color: var(--muted); font-family: 'Raleway', sans-serif; font-size: 0.62rem; letter-spacing: 0.15em; text-transform: uppercase; padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.btn-back:hover { border-color: var(--cyan); color: var(--cyan); }
+
+#cloudStage { flex: 1; position: relative; overflow: hidden; }
+
+/* ── WORDS ── */
+.word {
+  position: absolute;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transform-origin: center center;
+  transition: filter 0.2s, transform 0.2s;
+  animation: wordIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+.word:hover { filter: brightness(1.6) drop-shadow(0 0 10px currentColor); transform: scale(1.1); z-index: 999 !important; }
+
+@keyframes wordIn {
+  from { opacity: 0; transform: scale(0.3); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── TOOLTIP ── */
+#tooltip {
+  position: fixed; z-index: 1000;
+  background: rgba(5,6,14,0.96);
+  border: 1px solid var(--cyan);
+  border-radius: 10px; padding: 12px 18px;
+  pointer-events: none; opacity: 0; transition: opacity 0.15s;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0,200,255,0.2);
+  min-width: 150px;
+}
+#tooltip.visible { opacity: 1; }
+.tt-word { font-family: 'Bebas Neue', sans-serif; font-size: 1.5rem; letter-spacing: 0.08em; color: var(--cyan); line-height: 1.1; margin-bottom: 8px; }
+.tt-row  { display: flex; justify-content: space-between; gap: 20px; font-size: 0.68rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 3px; }
+.tt-row span { color: var(--text); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- EDITOR -->
+<div id="editorView">
+  <div class="editor-wrap">
+    <div class="logo">СИБУР · Яфорум · Корпоративные тренеры</div>
+    <h1>Облако<br>слов</h1>
+    <p class="subtitle">Интерактивная визуализация ответов</p>
+    <div class="input-box">
+      <div class="input-top">
+        <span class="input-label">Ответы участников</span>
+        <span class="word-count" id="wordCountBadge">0 слов</span>
+      </div>
+      <textarea id="rawInput" placeholder="лидерство, развитие, команда&#10;доверие&#10;мотивация, рост..."></textarea>
+    </div>
+    <p class="hint">Формат: <strong>через запятую</strong>, <strong>пробел</strong> или <strong>с новой строки</strong>. Одинаковые слова объединяются — чаще = крупнее.</p>
+    <button class="btn-launch" onclick="launch()">ПОКАЗАТЬ ОБЛАКО →</button>
+  </div>
+</div>
+
+<!-- CLOUD -->
+<div id="cloudView">
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+  <div class="cloud-header">
+    <div class="cloud-title">СИБУР · Яфорум</div>
+    <div class="cloud-stats">Всего слов: <span id="statTotal">0</span> &nbsp;·&nbsp; Уникальных: <span id="statUniq">0</span></div>
+    <button class="btn-back" onclick="goBack()">← Редактировать</button>
+  </div>
+  <div id="cloudStage"></div>
+</div>
+
+<div id="tooltip">
+  <div class="tt-word" id="ttWord"></div>
+  <div class="tt-row">Упоминаний <span id="ttCount"></span></div>
+  <div class="tt-row">Доля ответов <span id="ttPct"></span></div>
+</div>
+
+<script>
+const COLORS = ['#00c8ff','#ffffff','#00e5a0','#ffd166','#c77dff','#ff9f43','#ff6b6b','#4ecdc4','#a8e6cf','#ffb347','#87ceeb','#dda0dd'];
+
+// Словарь стоп-слов для исключения предлогов, союзов и местоимений
+const STOP_WORDS = new Set([
+  'и', 'а', 'но', 'да', 'или', 'ли', 'как', 'что', 'чтобы', 'это', 
+  'я', 'мы', 'ты', 'вы', 'он', 'она', 'оно', 'они', 
+  'в', 'на', 'с', 'по', 'к', 'о', 'об', 'из', 'от', 'за', 'у', 'для', 'до', 'при',
+  'не', 'ни', 'же', 'то', 'бы', 'все', 'всего', 'так', 'если', 'есть', 'быть',
+  'его', 'ее', 'их', 'этот', 'эта', 'эти', 'там', 'тут', 'здесь', 'очень', 'уже',
+  // Технические слова из нашего теста
+  'spa', 'css', 'мс', 'html'
+]);
+
+const editorView = document.getElementById('editorView');
+const cloudView  = document.getElementById('cloudView');
+const cloudStage = document.getElementById('cloudStage');
+const tooltip    = document.getElementById('tooltip');
+const rawInput   = document.getElementById('rawInput');
+
+let totalResponses = 0;
+
+rawInput.addEventListener('input', () => {
+  const n = parseWords(rawInput.value).length;
+  document.getElementById('wordCountBadge').textContent = n + ' ' + plural(n,'слово','слова','слов');
+});
+
+function plural(n, a, b, c) {
+  const m = n % 10, h = n % 100;
+  if (m === 1 && h !== 11) return a;
+  if (m >= 2 && m <= 4 && (h < 10 || h >= 20)) return b;
+  return c;
+}
+
+// Обновленная функция парсинга
+function parseWords(text) {
+  return text.split(/[\n,;\s]+/) // Разделяем по переносам, запятым, точкам с запятой и ПРОБЕЛАМ
+    .map(w => w.trim().toLowerCase().replace(/[^а-яёa-z\-]/gi,'')) // Оставляем только буквы и дефисы
+    .map(w => w.replace(/^-+|-+$/g, '')) // НОВОЕ: Удаляем висячие дефисы по краям (чтобы "---" исчезло)
+    .filter(w => w.length > 1) // Отсекаем все одиночные буквы и пустые строки
+    .filter(w => !STOP_WORDS.has(w)); // Исключаем стоп-слова из списка
+}
+
+function getFreq(words) {
+  const f = {};
+  for (const w of words) f[w] = (f[w]||0) + 1;
+  return Object.entries(f).sort((a,b) => b[1]-a[1]);
+}
+
+function launch() {
+  const words = parseWords(rawInput.value);
+  if (!words.length) { alert('Введите слова!'); return; }
+  totalResponses = words.length;
+  const freq = getFreq(words);
+  document.getElementById('statTotal').textContent = totalResponses;
+  document.getElementById('statUniq').textContent  = freq.length;
+  editorView.classList.add('hidden');
+  cloudView.classList.add('active');
+  // wait for layout
+  requestAnimationFrame(() => requestAnimationFrame(() => renderCloud(freq)));
+}
+
+function goBack() {
+  editorView.classList.remove('hidden');
+  cloudView.classList.remove('active');
+}
+
+/* ─────────────────────────────────────────
+   RENDER — pixel-collision spiral placement
+───────────────────────────────────────── */
+function renderCloud(freq) {
+  cloudStage.innerHTML = '';
+
+  const W = cloudStage.offsetWidth;
+  const H = cloudStage.offsetHeight;
+  if (!W || !H) return;
+
+  const maxCount = freq[0][1];
+
+  // Font size range — scale to screen
+  const maxFS = Math.round(Math.min(W, H) * 0.13);
+  const minFS = Math.max(14, Math.round(maxFS * 0.18));
+
+  // Offscreen canvas for measuring
+  const mc = document.createElement('canvas');
+  mc.width = W; mc.height = H;
+  const mctx = mc.getContext('2d');
+
+  function fontSize(count) {
+    const t = Math.pow(count / maxCount, 0.55);
+    return Math.round(minFS + t * (maxFS - minFS));
+  }
+
+  function measure(word, fs) {
+    mctx.font = `400 ${fs}px 'Bebas Neue', sans-serif`;
+    const tw = mctx.measureText(word).width;
+    return { w: Math.ceil(tw) + 4, h: Math.ceil(fs * 1.15) };
+  }
+
+  // Rects already placed: {x1,y1,x2,y2}
+  const placed = [];
+
+  function intersects(ax1,ay1,ax2,ay2, pad=6) {
+    for (const r of placed) {
+      if (ax1-pad < r.x2 && ax2+pad > r.x1 && ay1-pad < r.y2 && ay2+pad > r.y1) return true;
+    }
+    return false;
+  }
+
+  function place(word, fs, color, delay) {
+    const { w, h } = measure(word, fs);
+    const cx = W / 2;
+    const cy = H / 2;
+
+    // Archimedean spiral with tighter step for small words
+    const step = Math.max(2, fs * 0.12);
+    let angle = Math.random() * Math.PI * 2;
+    let r = 0;
+
+    for (let i = 0; i < 2000; i++) {
+      const x1 = Math.round(cx + r * Math.cos(angle) - w / 2);
+      const y1 = Math.round(cy + r * Math.sin(angle) - h / 2);
+      const x2 = x1 + w;
+      const y2 = y1 + h;
+
+      // bounds check
+      if (x1 >= 2 && y1 >= 2 && x2 <= W - 2 && y2 <= H - 2) {
+        if (!intersects(x1, y1, x2, y2)) {
+          placed.push({ x1, y1, x2, y2 });
+
+          const el = document.createElement('div');
+          el.className = 'word';
+          el.textContent = word;
+          el.style.cssText = [
+            `left:${x1}px`,
+            `top:${y1}px`,
+            `font-size:${fs}px`,
+            `color:${color}`,
+            `text-shadow:0 0 ${Math.round(fs*0.25)}px ${color}66`,
+            `z-index:${Math.round(fs)}`,
+            `animation-delay:${delay}ms`,
+          ].join(';');
+
+          const countVal = freq.find(f => f[0] === word)[1];
+          el.addEventListener('mouseenter', e => showTip(e, word, countVal));
+          el.addEventListener('mousemove',  moveTip);
+          el.addEventListener('mouseleave', hideTip);
+
+          cloudStage.appendChild(el);
+          return true;
+        }
+      }
+
+      // advance spiral
+      r += step / (Math.PI * 2);
+      angle += 0.25;
+    }
+    return false; // couldn't fit
+  }
+
+  freq.forEach(([word, count], i) => {
+    place(word, fontSize(count), COLORS[i % COLORS.length], i * 40);
+  });
+}
+
+// Tooltip
+function showTip(e, word, count) {
+  document.getElementById('ttWord').textContent  = word;
+  document.getElementById('ttCount').textContent = count;
+  document.getElementById('ttPct').textContent   = ((count / totalResponses) * 100).toFixed(1) + '%';
+  tooltip.classList.add('visible');
+  moveTip(e);
+}
+function moveTip(e) {
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  let x = e.clientX + 18, y = e.clientY - th / 2;
+  if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - 18;
+  if (y < 8) y = 8;
+  if (y + th > window.innerHeight - 8) y = window.innerHeight - th - 8;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
+}
+function hideTip() { tooltip.classList.remove('visible'); }
+
+// Redraw on resize
+let rsTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(rsTimer);
+  rsTimer = setTimeout(() => {
+    if (!cloudView.classList.contains('active')) return;
+    const words = parseWords(rawInput.value);
+    if (words.length) renderCloud(getFreq(words));
+  }, 250);
+});
+</script>
+</body>
+</html>
