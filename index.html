@@ -218,6 +218,7 @@ textarea::placeholder { color: rgba(255,255,255,0.3); }
 <script>
 // Чистая палитра из брендбука СИБУР
 const COLORS = ['#008C95', '#77E2C3', '#E04E39', '#FFE6D7', '#FFFFFF'];
+const MAX_RENDER_WORDS = 120; // Avoid long, blocking placement calculations on large surveys.
 
 // Словарь стоп-слов
 const STOP_WORDS = new Set([
@@ -258,9 +259,16 @@ function parseWords(text) {
 }
 
 function getFreq(words) {
-  const f = {};
-  for (const w of words) f[w] = (f[w]||0) + 1;
-  return Object.entries(f).sort((a,b) => b[1]-a[1]);
+  // A Map avoids inherited Object keys such as "constructor" corrupting counters.
+  const frequencies = new Map();
+  for (const word of words) {
+    frequencies.set(word, (frequencies.get(word) || 0) + 1);
+  }
+  return [...frequencies.entries()].sort((a,b) => b[1]-a[1]);
+}
+
+function limitRenderedWords(freq) {
+  return freq.slice(0, MAX_RENDER_WORDS);
 }
 
 function launch() {
@@ -269,7 +277,9 @@ function launch() {
   totalResponses = words.length;
   const freq = getFreq(words);
   document.getElementById('statTotal').textContent = totalResponses;
-  document.getElementById('statUniq').textContent  = freq.length;
+  document.getElementById('statUniq').textContent  = freq.length > MAX_RENDER_WORDS
+    ? `${freq.length} (показано ${MAX_RENDER_WORDS})`
+    : freq.length;
   editorView.classList.add('hidden');
   cloudView.classList.add('active');
   requestAnimationFrame(() => requestAnimationFrame(() => renderCloud(freq)));
@@ -367,7 +377,7 @@ function renderCloud(freq) {
     return false; 
   }
 
-  freq.forEach(([word, count], i) => {
+  limitRenderedWords(freq).forEach(([word, count], i) => {
     place(word, fontSize(count), COLORS[i % COLORS.length], i * 40);
   });
 }
